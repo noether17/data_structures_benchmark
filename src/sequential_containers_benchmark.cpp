@@ -7,18 +7,17 @@
 #include <utility>
 #include <vector>
 
-// #define REPEAT2(X) X X
-// #define REPEAT4(X) REPEAT2(REPEAT2(X))
-// #define REPEAT16(X) REPEAT4(REPEAT4(X))
-// #define REPEAT(X) REPEAT16(REPEAT16(X))
-//
-// constexpr auto n_repetitions = 256;
-
 constexpr auto max_container_bytes = 1 << 22;
 constexpr auto test_repetitions = 1;
 
+template <typename ContainerType>
+void reserve_if_reserving_vector(ContainerType&, std::size_t) {}
+
 template <int ElementBytes, template <typename> typename ContainerType>
 static void BM_insert_in_sorted_order(benchmark::State& state) {
+  static_assert(
+      (ElementBytes & (ElementBytes - 1)) == 0 and ElementBytes >= sizeof(int),
+      "ElementBytes must be a power of two and at least sizeof(int).");
   using ElementType = std::array<int, ElementBytes / sizeof(int)>;
 
   constexpr auto max_container_size = max_container_bytes / sizeof(ElementType);
@@ -45,6 +44,10 @@ static void BM_insert_in_sorted_order(benchmark::State& state) {
   }();
   auto output_containers = [=] {
     auto const n_output_containers = test_size / container_size;
+    auto ocs = std::vector<ContainerType<ElementType>>(n_output_containers);
+    for (auto& c : ocs) {
+      reserve_if_reserving_vector(c, container_size);
+    }
     return std::vector<ContainerType<ElementType>>(n_output_containers);
   }();
 
@@ -63,35 +66,39 @@ static void BM_insert_in_sorted_order(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * test_size);
 }
 
-BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, 4, std::vector)
-    ->RangeMultiplier(2)
-    ->Range(1 << 2, max_container_bytes)
-    ->Iterations(1);
-BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, 4, std::list)
-    ->RangeMultiplier(2)
-    ->Range(1 << 2, max_container_bytes)
-    ->Iterations(1);
-BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, 32, std::vector)
-    ->RangeMultiplier(2)
-    ->Range(1 << 2, max_container_bytes)
-    ->Iterations(1);
-BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, 32, std::list)
-    ->RangeMultiplier(2)
-    ->Range(1 << 2, max_container_bytes)
-    ->Iterations(1);
-BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, 256, std::vector)
-    ->RangeMultiplier(2)
-    ->Range(1 << 2, max_container_bytes)
-    ->Iterations(1);
-BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, 256, std::list)
-    ->RangeMultiplier(2)
-    ->Range(1 << 2, max_container_bytes)
-    ->Iterations(1);
-BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, 2048, std::vector)
-    ->RangeMultiplier(2)
-    ->Range(1 << 2, max_container_bytes)
-    ->Iterations(1);
-BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, 2048, std::list)
-    ->RangeMultiplier(2)
-    ->Range(1 << 2, max_container_bytes)
-    ->Iterations(1);
+template <typename T>
+struct NullContainer {
+  auto begin() { return static_cast<T*>(nullptr); }
+  auto end() { return static_cast<T*>(nullptr); }
+  auto insert(T*, T t) {
+    benchmark::DoNotOptimize(t);
+    return static_cast<T*>(nullptr);
+  }
+};
+
+// Use std::vector implementation, but tag to use reserve() when initializing.
+template <typename ElementType>
+struct ReservingVector : public std::vector<ElementType> {};
+
+template <typename ElementType>
+void reserve_if_reserving_vector(ReservingVector<ElementType>& rv,
+                                 std::size_t s) {
+  rv.reserve(s);
+}
+
+#define BM_SORTED_INSERT(ELEMENT_SIZE, CONTAINER_TYPE)                        \
+  BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, ELEMENT_SIZE, CONTAINER_TYPE) \
+      ->RangeMultiplier(2)                                                    \
+      ->Range(ELEMENT_SIZE, max_container_bytes)                              \
+      ->Iterations(1);
+#define BM_SORTED_INSERT_SET(CONTAINER_TYPE) \
+  BM_SORTED_INSERT(4, CONTAINER_TYPE)        \
+  BM_SORTED_INSERT(16, CONTAINER_TYPE)       \
+  BM_SORTED_INSERT(64, CONTAINER_TYPE)       \
+  BM_SORTED_INSERT(256, CONTAINER_TYPE)      \
+  BM_SORTED_INSERT(1024, CONTAINER_TYPE)
+
+BM_SORTED_INSERT_SET(NullContainer);
+BM_SORTED_INSERT_SET(std::vector);
+BM_SORTED_INSERT_SET(ReservingVector);
+BM_SORTED_INSERT_SET(std::list);
