@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <list>
+#include <memory>
 #include <random>
 #include <utility>
 #include <vector>
@@ -56,7 +57,7 @@ static void BM_insert_in_sorted_order(benchmark::State& state) {
       auto& current_container = output_containers[container_idx];
       auto it = current_container.begin();
       for (; it != current_container.end(); ++it) {
-        if (element[0] < (*it)[0]) {
+        if (element[0] < static_cast<ElementType>(*it)[0]) {
           break;
         }
       }
@@ -86,6 +87,32 @@ void reserve_if_reserving_vector(ReservingVector<ElementType>& rv,
   rv.reserve(s);
 }
 
+template <typename T>
+class HeapElement {
+ public:
+  HeapElement() : e_{std::make_unique<T>()} {}
+  HeapElement(T const& t) : e_{std::make_unique<T>(t)} {}
+  HeapElement(HeapElement const& other) : e_{std::make_unique<T>(*other.e_)} {}
+  HeapElement(HeapElement&& other) : e_{std::move(other.e_)} {}
+  HeapElement& operator=(HeapElement const& other) {
+    *e_ = *other.e_;
+    return *this;
+  }
+  HeapElement& operator=(HeapElement&& other) {
+    e_ = std::move(other.e_);
+    return *this;
+  }
+  ~HeapElement() = default;
+  operator T() const { return *e_; }
+  operator T&() { return *e_; }
+
+ private:
+  std::unique_ptr<T> e_;
+};
+
+template <typename T>
+struct PointerVector : public std::vector<HeapElement<T>> {};
+
 #define BM_SORTED_INSERT(ELEMENT_SIZE, CONTAINER_TYPE)                        \
   BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, ELEMENT_SIZE, CONTAINER_TYPE) \
       ->RangeMultiplier(2)                                                    \
@@ -102,3 +129,4 @@ BM_SORTED_INSERT_SET(NullContainer);
 BM_SORTED_INSERT_SET(std::vector);
 BM_SORTED_INSERT_SET(ReservingVector);
 BM_SORTED_INSERT_SET(std::list);
+BM_SORTED_INSERT_SET(PointerVector);
