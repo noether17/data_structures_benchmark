@@ -11,15 +11,22 @@
 constexpr auto max_container_bytes = 1 << 22;
 constexpr auto test_repetitions = 1;
 
+template <std::size_t ElementBytes>
+struct Element : public std::array<int, ElementBytes / sizeof(int)> {
+  static_assert(
+      (ElementBytes & (ElementBytes - 1)) == 0 and ElementBytes >= sizeof(int),
+      "ElementBytes must be a power of two and at least sizeof(int).");
+  friend auto operator<(Element const& lhs, Element const& rhs) {
+    return lhs[0] < rhs[0];
+  }
+};
+
 template <typename ContainerType>
 void reserve_if_reserving_vector(ContainerType&, std::size_t) {}
 
 template <int ElementBytes, template <typename> typename ContainerType>
 static void BM_insert_in_sorted_order(benchmark::State& state) {
-  static_assert(
-      (ElementBytes & (ElementBytes - 1)) == 0 and ElementBytes >= sizeof(int),
-      "ElementBytes must be a power of two and at least sizeof(int).");
-  using ElementType = std::array<int, ElementBytes / sizeof(int)>;
+  using ElementType = Element<ElementBytes>;
 
   constexpr auto max_container_size = max_container_bytes / sizeof(ElementType);
   constexpr auto test_size = max_container_size * test_repetitions;
@@ -49,7 +56,7 @@ static void BM_insert_in_sorted_order(benchmark::State& state) {
     for (auto& c : ocs) {
       reserve_if_reserving_vector(c, container_size);
     }
-    return std::vector<ContainerType<ElementType>>(n_output_containers);
+    return ocs;
   }();
 
   for (auto _ : state) {
@@ -57,7 +64,7 @@ static void BM_insert_in_sorted_order(benchmark::State& state) {
       auto& current_container = output_containers[container_idx];
       auto it = current_container.begin();
       for (; it != current_container.end(); ++it) {
-        if (element[0] < static_cast<ElementType>(*it)[0]) {
+        if (element < *it) {
           break;
         }
       }
