@@ -37,8 +37,7 @@ static void BM_insert_in_sorted_order(benchmark::State& state) {
     auto rvs = std::vector<int>(test_size);
     std::iota(rvs.begin(), rvs.end(), 0);
 
-    auto rd = std::random_device{};
-    auto gen = std::mt19937{rd()};
+    auto gen = std::mt19937{};
     std::shuffle(rvs.begin(), rvs.end(), gen);
     return rvs;
   }();
