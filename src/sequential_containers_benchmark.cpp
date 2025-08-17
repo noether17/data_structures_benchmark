@@ -2,13 +2,14 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <list>
 #include <memory>
 #include <random>
 #include <utility>
 #include <vector>
 
-constexpr auto max_container_bytes = 1 << 22;
+constexpr auto max_container_bytes = 1 << 20;
 constexpr auto test_repetitions = 1;
 
 template <std::size_t ElementBytes>
@@ -22,9 +23,17 @@ struct Element : public std::array<int, ElementBytes / sizeof(int)> {
 };
 
 template <typename ContainerType>
-void reserve_if_reserving_vector(ContainerType&, std::size_t) {}
+struct NullIniter {
+  void operator()(ContainerType&, std::size_t) {}
+};
 
-template <int ElementBytes, template <typename> typename ContainerType>
+template <typename ContainerType>
+struct Reserver {
+  void operator()(ContainerType& c, std::size_t n) { c.reserve(n); }
+};
+
+template <int ElementBytes, template <typename> typename ContainerType,
+          template <typename> typename Initializer>
 static void BM_insert_in_sorted_order(benchmark::State& state) {
   using ElementType = Element<ElementBytes>;
 
@@ -53,7 +62,7 @@ static void BM_insert_in_sorted_order(benchmark::State& state) {
     auto const n_output_containers = test_size / container_size;
     auto ocs = std::vector<ContainerType<ElementType>>(n_output_containers);
     for (auto& c : ocs) {
-      reserve_if_reserving_vector(c, container_size);
+      Initializer<ContainerType<ElementType>>{}(c, container_size);
     }
     return ocs;
   }();
@@ -83,16 +92,6 @@ struct NullContainer {
   }
 };
 
-// Use std::vector implementation, but tag to use reserve() when initializing.
-template <typename ElementType>
-struct ReservingVector : public std::vector<ElementType> {};
-
-template <typename ElementType>
-void reserve_if_reserving_vector(ReservingVector<ElementType>& rv,
-                                 std::size_t s) {
-  rv.reserve(s);
-}
-
 template <typename T>
 class HeapElement {
  public:
@@ -119,20 +118,22 @@ class HeapElement {
 template <typename T>
 struct PointerVector : public std::vector<HeapElement<T>> {};
 
-#define BM_SORTED_INSERT(ELEMENT_SIZE, CONTAINER_TYPE)                        \
-  BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, ELEMENT_SIZE, CONTAINER_TYPE) \
+#define BM_SORTED_INSERT(ELEMENT_SIZE, CONTAINER_TYPE, INIT)                  \
+  BENCHMARK_TEMPLATE(BM_insert_in_sorted_order, ELEMENT_SIZE, CONTAINER_TYPE, \
+                     INIT)                                                    \
       ->RangeMultiplier(2)                                                    \
       ->Range(ELEMENT_SIZE, max_container_bytes)                              \
       ->Iterations(1);
-#define BM_SORTED_INSERT_SET(CONTAINER_TYPE) \
-  BM_SORTED_INSERT(4, CONTAINER_TYPE)        \
-  BM_SORTED_INSERT(16, CONTAINER_TYPE)       \
-  BM_SORTED_INSERT(64, CONTAINER_TYPE)       \
-  BM_SORTED_INSERT(256, CONTAINER_TYPE)      \
-  BM_SORTED_INSERT(1024, CONTAINER_TYPE)
+#define BM_SORTED_INSERT_SET(CONTAINER_TYPE, INIT) \
+  BM_SORTED_INSERT(4, CONTAINER_TYPE, INIT)        \
+  BM_SORTED_INSERT(16, CONTAINER_TYPE, INIT)       \
+  BM_SORTED_INSERT(64, CONTAINER_TYPE, INIT)       \
+  BM_SORTED_INSERT(256, CONTAINER_TYPE, INIT)      \
+  BM_SORTED_INSERT(1024, CONTAINER_TYPE, INIT)
 
-BM_SORTED_INSERT_SET(NullContainer);
-BM_SORTED_INSERT_SET(std::vector);
-BM_SORTED_INSERT_SET(ReservingVector);
-BM_SORTED_INSERT_SET(std::list);
-BM_SORTED_INSERT_SET(PointerVector);
+BM_SORTED_INSERT_SET(NullContainer, NullIniter);
+BM_SORTED_INSERT_SET(std::vector, NullIniter);
+BM_SORTED_INSERT_SET(std::vector, Reserver);
+BM_SORTED_INSERT_SET(PointerVector, NullIniter);
+BM_SORTED_INSERT_SET(PointerVector, Reserver);
+BM_SORTED_INSERT_SET(std::list, NullIniter);

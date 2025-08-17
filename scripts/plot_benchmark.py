@@ -20,8 +20,9 @@ def main():
     bm_names = np.array([bm["name"] for bm in benchmarks])
     element_sizes = np.array([int(name.split('<')[1].split(',')[0])
                               for name in bm_names])
-    containers = np.array([name.split(', ')[1].split('>')[0]
-                           for name in bm_names])
+    containers = np.array([name.split(', ')[1] for name in bm_names])
+    initializers = np.array([name.split(', ')[2].split('>')[0]
+                             for name in bm_names])
     collection_sizes = np.array([int(name.split('/')[1]) for name in bm_names])
     collection_items = collection_sizes / element_sizes
     items_per_second = np.array([float(bm["items_per_second"])
@@ -40,16 +41,21 @@ def main():
         for family_index in unique_family_indices:
             current_indices, = np.where(family_indices == family_index)
             container = containers[current_indices[0]]
-            if container == 'NullContainer': continue
+            initializer = initializers[current_indices[0]]
+            if container == 'NullContainer':
+                continue
             elif container == 'std::vector':
                 label = f"std::vector<{element_size}B>"
                 color = 'b'
-            elif container == 'ReservingVector':
-                label = f"std::vector<{element_size}B> (reserved)"
-                color = 'g'
+                if initializer == 'Reserver':
+                    label += " (reserved)"
+                    color = 'g'
             elif container == 'PointerVector':
                 label = f"std::vector<{element_size}B*>"
                 color = 'r'
+                if initializer == 'Reserver':
+                    label += " (reserved)"
+                    color = 'orange'
             elif container == 'std::list':
                 label = f"std::list<{element_size}B>"
                 color = 'y'
