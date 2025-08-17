@@ -41,15 +41,29 @@ def main():
             current_indices, = np.where(family_indices == family_index)
             container = containers[current_indices[0]]
             if container == 'NullContainer': continue
-            if container == 'ReservingVector':
+            elif container == 'std::vector':
+                label = f"std::vector<{element_size}B>"
+                color = 'b'
+            elif container == 'ReservingVector':
                 label = f"std::vector<{element_size}B> (reserved)"
+                color = 'g'
             elif container == 'PointerVector':
-                label = f"std::vector<*{element_size}B>"
+                label = f"std::vector<{element_size}B*>"
+                color = 'r'
+            elif container == 'std::list':
+                label = f"std::list<{element_size}B>"
+                color = 'y'
             else:
-                label = f"{container}<{element_size}B>"
+                raise ValueError()
+
+            if 'vector' in label:
+                marker = 'v'
+            else:
+                marker = '^'
+
             plt.loglog(collection_sizes[current_indices],
                        seconds_per_item[current_indices],
-                       label=label)
+                       label=label, marker=marker, color=color)
 
         l1_cache = [cache for cache in caches
                     if cache['level'] == 1 and cache['type'] == 'Data'][0]
@@ -63,11 +77,12 @@ def main():
         plt.axvline(l3_cache['size'], color='b', alpha=0.5, linestyle='--')
 
         plt.xlabel("Container Size (B)")
-        plt.ylabel("Time / Insert (s / item)")
+        plt.ylabel("Time per Insert (s)")
         plt.title(f"Performance of Random Insertion with {element_size}B "
                   f"Elements")
         plt.legend()
         plt.grid()
+        plt.savefig(f"random_insertion_performance_plot_{element_size}B.jpg")
         plt.show()
 
 if __name__ == "__main__":
