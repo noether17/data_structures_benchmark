@@ -40,19 +40,32 @@ def main():
             current_indices, = np.where(family_indices == family_index)
             container = containers[current_indices[0]]
 
-            label=container
             if container == 'std::vector':
+                label = f"std::sort() on std::vector<{element_size}B>"
+                color = 'b'
                 marker = 'v'
             elif container == 'PointerVector':
+                label = f"std::sort() on std::vector<{element_size}B*>"
+                color = 'g'
+                marker = '*'
+            elif container == 'MSVector':
+                label = f"merge sort on std::vector<{element_size}B>"
+                color = 'm'
+                marker = 'v'
+            elif container == 'MSPointerVector':
+                label = f"merge sort on std::vector<{element_size}B*>"
+                color = 'y'
                 marker = '*'
             elif container == 'std::list':
-                marker='^'
+                label = f"std::list::sort() on std::list<{element_size}B>"
+                color = 'r'
+                marker='x'
             else:
-                marker = '.'
+                continue
 
             plt.loglog(collection_sizes[current_indices],
                        seconds_per_item[current_indices],
-                       label=label, marker=marker)
+                       label=label, marker=marker, color=color)
 
         l1_cache = [cache for cache in caches
                     if cache['level'] == 1 and cache['type'] == 'Data'][0]

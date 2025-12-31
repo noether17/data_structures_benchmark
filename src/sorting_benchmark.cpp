@@ -21,6 +21,46 @@ struct Element : public std::array<int, ElementBytes / sizeof(int)> {
   }
 };
 
+// merge sort with small buffer optimization
+template <typename RandomIt>
+void sbo_merge(RandomIt first, RandomIt midpoint, RandomIt last) {
+  using Value = typename RandomIt::value_type;
+  auto static constexpr buffer_size = 8;
+
+  auto left_size = midpoint - first;
+  auto left_buffer = std::array<Value, buffer_size>{};
+  auto left_vec = std::vector<Value>{};
+  auto* left_first =
+      left_size <= buffer_size
+          ? (std::copy(first, midpoint, left_buffer.begin()),
+             left_buffer.data())
+          : (left_vec.reserve(left_size),
+             left_vec.insert(left_vec.end(), first, midpoint), left_vec.data());
+  auto* left_last = left_first + left_size;
+
+  auto insert_point = first;
+  auto right_first = midpoint;
+  while (left_first != left_last and right_first != last) {
+    if (*right_first < *left_first) {
+      *insert_point++ = *right_first++;
+    } else {
+      *insert_point++ = *left_first++;
+    }
+  }
+  std::copy(left_first, left_last, insert_point);
+}
+template <typename RandomIt>
+void sbo_merge_sort(RandomIt first, RandomIt last) {
+  if ((last - first) < 2) {
+    return;
+  }
+
+  auto midpoint = first + (last - first) / 2;
+  sbo_merge_sort(first, midpoint);
+  sbo_merge_sort(midpoint, last);
+  sbo_merge(first, midpoint, last);
+}
+
 template <typename C>
 void sort(C& container) {
   std::sort(container.begin(), container.end());
@@ -94,6 +134,22 @@ class HeapElement {
 template <typename T>
 struct PointerVector : public std::vector<HeapElement<T>> {};
 
+template <typename T>
+struct MSVector : public std::vector<T> {};
+
+template <typename T>
+struct MSPointerVector : public PointerVector<T> {};
+
+template <typename T>
+void sort(MSVector<T>& v) {
+  sbo_merge_sort(v.begin(), v.end());
+}
+
+template <typename T>
+void sort(MSPointerVector<T>& v) {
+  sbo_merge_sort(v.begin(), v.end());
+}
+
 #define BM_SORT_CONTAINER(ELEMENT_SIZE, CONTAINER_TYPE)               \
   BENCHMARK_TEMPLATE(BM_sort_container, ELEMENT_SIZE, CONTAINER_TYPE) \
       ->RangeMultiplier(2)                                            \
@@ -109,4 +165,6 @@ struct PointerVector : public std::vector<HeapElement<T>> {};
 BM_SORT_CONTAINER_SET(std::deque);
 BM_SORT_CONTAINER_SET(std::vector);
 BM_SORT_CONTAINER_SET(PointerVector);
+BM_SORT_CONTAINER_SET(MSVector);
+BM_SORT_CONTAINER_SET(MSPointerVector);
 BM_SORT_CONTAINER_SET(std::list);

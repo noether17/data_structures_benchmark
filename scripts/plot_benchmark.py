@@ -48,24 +48,29 @@ def main():
                 label = f"std::vector<{element_size}B>"
                 color = 'b'
                 if initializer == 'Reserver':
-                    label += " (reserved)"
-                    color = 'g'
+                    pass
+                    #label += " (reserved)"
+                    #color = 'm'
+                else:
+                    continue
+                marker = 'v'
             elif container == 'PointerVector':
+                #continue
                 label = f"std::vector<{element_size}B*>"
-                color = 'r'
+                color = 'g'
                 if initializer == 'Reserver':
-                    label += " (reserved)"
-                    color = 'orange'
+                    pass
+                    #label += " (reserved)"
+                    #color = 'y'
+                else:
+                    continue
+                marker = '*'
             elif container == 'std::list':
                 label = f"std::list<{element_size}B>"
-                color = 'y'
+                color = 'r'
+                marker = 'x'
             else:
                 raise ValueError()
-
-            if 'vector' in label:
-                marker = 'v'
-            else:
-                marker = '^'
 
             plt.loglog(collection_sizes[current_indices],
                        seconds_per_item[current_indices],
@@ -88,7 +93,7 @@ def main():
                   f"Elements")
         plt.legend()
         plt.grid()
-        plt.savefig(f"random_insertion_performance_plot_{element_size}B.jpg")
+        plt.savefig(f"random_insertion_performance_plot_lrp{element_size}B.jpg")
         plt.show()
 
 if __name__ == "__main__":
